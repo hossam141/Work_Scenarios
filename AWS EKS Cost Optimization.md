@@ -15,28 +15,28 @@ Initially, all EC2 instances were **On-Demand**, leading to **high costs**.
 | **Total Cost (Before Optimization)** | **$1,515.48 per month** |
 
 ## Cost Optimization Plan
-- **STG/PROD**: Switch to **Reserved Instances (RI)** to reduce costs while ensuring stability.
-- **DEV/TEST**: Move to **Spot Instances** for cost savings since interruptions are acceptable.
+- **STG/PROD**: Switch to **Reserved Instances (RI) with All Upfront payment** to maximize cost savings.
+- **DEV/TEST**: Move to **Spot Instances with a max bid price of `$0.04/hr`** for controlled cost savings.
 - Automate the infrastructure using **Terraform & Terragrunt**.
 - Ensure workloads are properly scheduled using **Helm and Kubernetes labels**.
 - **Create and configure EKS Node Groups** to ensure instances are properly utilized.
 
-## Step 1: Configure Reserved Instances (RI) for STG/PROD
+## Step 1: Configure Reserved Instances (RI) for STG/PROD (All Upfront Payment)
 ```bash
 aws ec2 purchase-reserved-instances-offering \
     --instance-type m5.large \
-    --reserved-instances-offering-id OFFERING_ID \
-    --instance-count 6
+    --reserved-instances-offering-id $(aws ec2 describe-reserved-instances-offerings --instance-type m5.large --region us-east-1 --query 'ReservedInstancesOfferings[0].ReservedInstancesOfferingId' --output text) \
+    --instance-count 6 --offering-type All Upfront
 ```
 
-## Step 2: Configure Spot Instances for DEV/TEST
+## Step 2: Configure Spot Instances for DEV/TEST with Max Bid Price
 ```hcl
 resource "aws_spot_instance_request" "dev_test" {
   provider = aws.dev
   count = 6
   ami = "ami-0abcdef1234567890"
   instance_type = var.dev_test_instance_type
-  spot_price = "0.05"
+  spot_price = "0.04" # Set max bid to $0.04/hr
   subnet_id = var.subnet_id
 }
 ```
@@ -116,8 +116,8 @@ nodeSelector:
 ## Final Cost Breakdown (After Optimization)
 | **Environment** | **Instance Type** | **Instance Pricing Model (After)** | **Cost Per Month (After)** |
 |----------------|------------------|----------------------------------|----------------------|
-| **STG & PROD** | `m5.large` / `m6g.large` | **Reserved Instances (RI)** | **$315.36** |
-| **DEV & TEST** | `m5.large` / `m6g.large` | **Spot Instances** | **$192.72** |
+| **STG & PROD** | `m5.large` / `m6g.large` | **Reserved Instances (All Upfront)** | **$315.36** |
+| **DEV & TEST** | `m5.large` / `m6g.large` | **Spot Instances (Max Bid: $0.04/hr)** | **$192.72** |
 | **Total Cost (After Optimization)** | **$508.08 per month** |
 
 **Total Savings:** **$1,515.48 → $508.08 (67% cost reduction!)**
@@ -126,11 +126,10 @@ nodeSelector:
 "In my recent project, I was responsible for optimizing EC2 costs in an EKS cluster across **two AWS accounts**—one for **STG/PROD** and one for **DEV/TEST**.
 
 Initially, all instances were **On-Demand**, costing **$1,515 per month**. I analyzed usage patterns and implemented a new strategy:
-- **For STG & PROD**, I switched to **Reserved Instances (RI)**, reducing costs by **58%**.
-- **For DEV & TEST**, I moved to **Spot Instances**, achieving **75% cost savings**.
+- **For STG & PROD**, I switched to **Reserved Instances (All Upfront)**, reducing costs by **75%**.
+- **For DEV & TEST**, I moved to **Spot Instances** with a max bid price of **$0.04/hr**, ensuring 75% cost savings without exceeding budget.
 - I automated the deployment using **Terraform & Terragrunt** to ensure a **seamless multi-account setup**.
 - I created **EKS Node Groups** to properly handle Reserved and Spot instances.
 - I updated **Helm values** to **properly schedule workloads** in Kubernetes.
 
 As a result, we reduced EC2 costs by **67% ($1,515 → $508 per month)** while maintaining reliability for STG/PROD workloads and flexibility for DEV/TEST workloads."
-
