@@ -169,4 +169,13 @@ aws backup start-restore-job     --recovery-point-arn arn:aws:backup:us-east-1:1
 
 *"Now, weekly EC2 backups are securely stored in Amazon S3 and automatically transitioned to **S3 Glacier after 30 days** to optimize cost while maintaining long-term retention."*  
 
+
+### **Interviewer:** *What is AWS Backup Vault and how does it store data?*  
+✅ **Your Answer:**  
+*"AWS Backup Vault is a **logical storage container** in AWS Backup that stores **backup recovery points**. It does not store raw data but instead references actual backups stored in AWS services like **EBS, S3, RDS, and DynamoDB**."*  
+
+*"For example, when an **EC2 instance is backed up**, AWS Backup Vault **stores a recovery point**, and the actual snapshot is saved in **Amazon EBS Snapshots**. This allows for centralized backup management with features like **encryption, retention policies, and cross-region replication**."*  
+
+*"AWS Backup Vault ensures **secure and automated backup management** across AWS services, making it a crucial component for disaster recovery planning."*
+
 ✅ **Now, you're fully prepared to present this backup strategy in your interview!** 🚀
