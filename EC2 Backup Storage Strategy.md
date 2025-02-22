@@ -17,7 +17,42 @@ To mitigate risks, we implement a **three-tier backup storage strategy** that ba
 
 ---
 
-## **Step 1: Automating Daily EBS Snapshots (7-Day Retention)**
+## **Step 1: Creating an S3 Bucket for Weekly Backups**
+Before configuring AWS Backup, we need a dedicated **S3 bucket** to store weekly backups.
+
+### **1️⃣ Create an S3 Bucket**
+```hcl
+resource "aws_s3_bucket" "backup_s3_bucket" {
+  bucket = "ec2-weekly-backups-bucket"
+  acl    = "private"
+}
+```
+✅ **This ensures AWS Backup has a dedicated S3 storage location.**
+
+### **2️⃣ Attach a Policy to Allow AWS Backup to Write to S3**
+```hcl
+resource "aws_s3_bucket_policy" "backup_s3_policy" {
+  bucket = aws_s3_bucket.backup_s3_bucket.id
+  policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": { "Service": "backup.amazonaws.com" },
+      "Action": "s3:PutObject",
+      "Resource": "arn:aws:s3:::ec2-weekly-backups-bucket/*"
+    }
+  ]
+}
+EOF
+}
+```
+✅ **This policy allows AWS Backup to store backups in the S3 bucket.**
+
+---
+
+## **Step 2: Automating Daily EBS Snapshots (7-Day Retention)**
 We use **Amazon EBS Snapshots** for **fast volume recovery**, ensuring recent backups are available.
 
 ### **Terraform Configuration for Daily Snapshots**
@@ -43,17 +78,21 @@ resource "aws_backup_plan" "daily_backup_plan" {
 
 ---
 
-## **Step 2: Automating Weekly Backups to S3 (4 Weeks Retention)**
-We use **AWS Backup** to move weekly backups from **EBS to S3**.
+## **Step 3: Automating Weekly Backups to S3 (4 Weeks Retention)**
+Now that the **S3 bucket is created**, we configure AWS Backup to move weekly backups from **EBS to S3**.
 
 ### **Terraform Configuration for Weekly S3 Backup**
 ```hcl
+resource "aws_backup_vault" "s3_backup_vault" {
+  name = "s3-backup-vault"
+}
+
 resource "aws_backup_plan" "weekly_backup_plan" {
   name = "weekly-s3-backup"
 
   rule {
     rule_name         = "weekly-s3-backup-rule"
-    target_vault_name = aws_backup_vault.ebs_backup_vault.name
+    target_vault_name = aws_backup_vault.s3_backup_vault.name
     schedule          = "cron(0 3 ? * SUN *)" # Every Sunday at 3 AM UTC
     lifecycle {
       delete_after = 28 # Retain for 4 weeks
@@ -65,18 +104,13 @@ resource "aws_backup_plan" "weekly_backup_plan" {
 
 ---
 
-## **Step 3: Moving Backups to S3 Glacier for Long-Term Archival**
+## **Step 4: Moving Backups to S3 Glacier for Long-Term Archival**
 To save costs, we move backups to **S3 Glacier** after **30 days**.
 
 ### **Terraform Configuration for S3 Glacier Lifecycle Policy**
 ```hcl
-resource "aws_s3_bucket" "backup_bucket" {
-  bucket = "ec2-backups-bucket"
-  acl    = "private"
-}
-
 resource "aws_s3_bucket_lifecycle_configuration" "backup_lifecycle" {
-  bucket = aws_s3_bucket.backup_bucket.id
+  bucket = aws_s3_bucket.backup_s3_bucket.id
 
   rule {
     id     = "move-to-glacier"
@@ -93,7 +127,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "backup_lifecycle" {
 
 ---
 
-## **Step 4: Restoring Backups**
+## **Step 5: Restoring Backups**
 
 ### **1️⃣ Restoring EC2 from an EBS Snapshot**
 ```bash
@@ -109,7 +143,7 @@ aws backup start-restore-job     --recovery-point-arn arn:aws:backup:us-east-1:1
 
 ---
 
-## **Step 5: Cost Optimization Summary**
+## **Step 6: Cost Optimization Summary**
 | **Backup Storage**       | **Cost Efficiency** |
 |--------------------------|--------------------|
 | **EBS Snapshots**        | High cost for fast recovery (retained for 7 days) |
@@ -128,6 +162,6 @@ aws backup start-restore-job     --recovery-point-arn arn:aws:backup:us-east-1:1
 - **Long-term backups moved to S3 Glacier** after **30 days**, reducing storage costs.
 - **Automated backups using Terraform & AWS Backup**, ensuring consistency.
 
-*"This solution enabled fast recovery, minimized costs, and ensured compliance with business continuity requirements."*  
+*"To ensure proper sequencing, we first created the **S3 bucket** and attached a **policy** allowing AWS Backup to write backups. Then, we configured **AWS Backup Vaults** to manage retention policies, ensuring backups automatically transition from **EBS → S3 → Glacier** for cost optimization."*
 
 ✅ **Now, you're fully prepared to present this backup strategy in your interview!** 🚀
