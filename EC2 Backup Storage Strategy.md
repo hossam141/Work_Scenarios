@@ -40,7 +40,7 @@ resource "aws_s3_bucket_policy" "backup_s3_policy" {
     {
       "Effect": "Allow",
       "Principal": { "Service": "backup.amazonaws.com" },
-      "Action": "s3:PutObject",
+      "Action": ["s3:PutObject", "s3:GetObject"],
       "Resource": "arn:aws:s3:::ec2-weekly-backups-bucket/*"
     }
   ]
@@ -99,8 +99,18 @@ resource "aws_backup_plan" "weekly_backup_plan" {
     }
   }
 }
+
+resource "aws_backup_selection" "weekly_backup_selection" {
+  name = "weekly-backup-selection"
+  iam_role_arn = aws_iam_role.backup_role.arn
+  backup_plan_id = aws_backup_plan.weekly_backup_plan.id
+
+  resources = [
+    "arn:aws:s3:::ec2-weekly-backups-bucket"
+  ]
+}
 ```
-✅ **This ensures that a full EC2 backup is retained weekly in S3 for up to 4 weeks.**
+✅ **Now, weekly backups are explicitly stored in the S3 bucket (`ec2-weekly-backups-bucket`).**
 
 ---
 
@@ -153,15 +163,10 @@ aws backup start-restore-job     --recovery-point-arn arn:aws:backup:us-east-1:1
 ---
 
 ## **🚀 Final Interview Answer**
-### **Interviewer:** *How did you implement a backup strategy for EC2 instances?*  
+### **Interviewer:** *Where are the weekly backups stored?*  
 ✅ **Your Answer:**  
-*"I designed a **three-tier backup strategy** balancing **data protection and cost optimization** for 50 EC2 instances. The strategy included:*"
+*"By default, AWS Backup stores data in an AWS Backup Vault, but to explicitly send backups to **Amazon S3**, I created a dedicated **S3 bucket (`ec2-weekly-backups-bucket`)** and updated the **AWS Backup Selection** to store backups in S3. Additionally, I configured an **S3 Bucket Policy** to allow AWS Backup to write objects securely."*
 
-- **Daily EBS snapshots** for fast recovery (**retained for 7 days**).
-- **Weekly backups using AWS Backup**, stored in **S3 with a lifecycle policy**.
-- **Long-term backups moved to S3 Glacier** after **30 days**, reducing storage costs.
-- **Automated backups using Terraform & AWS Backup**, ensuring consistency.
-
-*"To ensure proper sequencing, we first created the **S3 bucket** and attached a **policy** allowing AWS Backup to write backups. Then, we configured **AWS Backup Vaults** to manage retention policies, ensuring backups automatically transition from **EBS → S3 → Glacier** for cost optimization."*
+*"Now, weekly EC2 backups are securely stored in Amazon S3 and automatically transitioned to **S3 Glacier after 30 days** to optimize cost while maintaining long-term retention."*  
 
 ✅ **Now, you're fully prepared to present this backup strategy in your interview!** 🚀
