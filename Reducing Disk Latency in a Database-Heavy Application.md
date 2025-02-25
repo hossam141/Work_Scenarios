@@ -130,4 +130,3 @@ To **prevent this issue from happening again**, we created a **Datadog alarm** t
 ---
 
 ✅ **Now, you're fully prepared to explain this performance optimization case in your SRE interview!** 🚀
-
