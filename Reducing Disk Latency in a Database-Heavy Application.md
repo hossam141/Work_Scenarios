@@ -3,14 +3,21 @@
 ## **🚀 Scenario: Frequent RDS CPU Spikes Leading to Performance Issues in EKS**  
 
 ### **1️⃣ Problem: High RDS CPU Spikes Observed in Datadog Dashboard**  
-#### **Datadog Widget Indicating a Potential Issue**
+#### **Datadog Widgets Indicating a Potential Issue**
 - While monitoring our **Datadog dashboard**, we noticed frequent **CPU spikes on Amazon RDS**.  
-- The **Datadog metric `aws.rds.cpu_utilization`** was reaching **80-90% utilization**, but we needed to confirm whether CPU was the root cause.  
+- The **Datadog metric `aws.rds.cpu_utilization`** was reaching **80-90% utilization**, and at the same time, **`aws.rds.read_latency` was consistently high**, exceeding **200ms**.  
+- This led to **slow query execution** and degraded application performance.  
 
-✅ **Recommended Datadog Widget Name:** `RDS CPU Utilization - EKS Cluster`  
-- **Metric:** `aws.rds.cpu_utilization` → Tracks **CPU usage percentage** in RDS.  
-- **Widget Type:** **Timeseries Graph** tracking CPU usage over time.  
-- **Alert Trigger:** CPU **exceeding 85% for more than 5 minutes**.  
+✅ **Recommended Datadog Widgets for RDS Monitoring:**  
+1. **`RDS CPU Utilization`**  
+   - **Metric:** `aws.rds.cpu_utilization` → Tracks **CPU usage percentage** in RDS.  
+   - **Widget Type:** **Timeseries Graph** tracking CPU usage over time.  
+   - **Alert Trigger:** CPU **exceeding 85% for more than 5 minutes**.  
+
+2. **`RDS Read Latency - Query Performance`**  
+   - **Metric:** `aws.rds.read_latency` → Measures **time taken for read operations** in RDS.  
+   - **Widget Type:** **Timeseries Graph** tracking disk read latency over time.  
+   - **Alert Trigger:** **Read latency > 150ms for more than 5 minutes**.  
 
 🔍 **Initial Investigation:**  
 - Since CPU was spiking, we checked **Datadog RDS Performance Insights** to analyze the most expensive queries.  
@@ -41,11 +48,6 @@
 - Since our AWS account is **integrated with Datadog**, we **monitored RDS metrics directly in Datadog**.  
 - Key metric observed:  
   - **`aws.rds.read_latency` → consistently above 200ms**, confirming slow disk reads.  
-
-✅ **Recommended Datadog Widget Name:** `RDS Read Latency - Query Performance`  
-- **Metric:** `aws.rds.read_latency` → Measures **time taken for read operations** in RDS.  
-- **Widget Type:** **Timeseries Graph** tracking disk read latency over time.  
-- **Alert Trigger:** **Read latency > 150ms for more than 5 minutes**.  
 
 🔴 **Issue:** High read latency was **directly impacting application performance in EKS**.
 
@@ -119,20 +121,6 @@ To **prevent this issue from happening again**, we created a **Datadog alarm** t
   - **Lower disk I/O wait times (`aws.rds.read_latency`)**  
   - **Optimized query response times (via RDS Performance Insights)**  
   - **Instant alerts if read latency exceeds 150ms**  
-
----
-
-## **5️⃣ Final Interview Answer**  
-**Interviewer:** *How did you detect and resolve a disk latency issue in a database-heavy application on EKS?*  
-
-✅ **Your Answer:**  
-*"While monitoring our Datadog dashboard, we noticed frequent **RDS CPU spikes** in our `RDS CPU Utilization - EKS Cluster` widget. However, after analyzing **Amazon RDS Performance Insights**, we discovered that the real issue was **high read latency (`aws.rds.read_latency`) rather than CPU contention**. Since `pg_stat_statements` was not enabled, we used **Performance Insights** to find slow queries. Instead of upgrading RDS due to cost constraints, we optimized queries with indexing and implemented a ...
-
-🚀 **With this answer, you showcase:**  
-- **Cloud-native monitoring skills** (Datadog RDS metrics, AWS Performance Insights).  
-- **Database performance troubleshooting** (Focusing on disk I/O instead of CPU).  
-- **Cost-aware optimization strategies** (Improving query efficiency instead of upgrading RDS).  
-- **Proactive alerting** (Datadog alarm setup for future prevention).  
 
 ---
 
