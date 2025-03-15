@@ -184,11 +184,19 @@ When a critical issue is detected, an **Amazon SNS (Simple Notification Service)
 ```bash
 aws sns create-topic --name TomcatAlerts
 ```
+✅ **What It Does:**
+- Creates an **SNS topic** called `TomcatAlerts` that will act as a notification hub.
+- This topic will be used to send **email alerts** whenever a CloudWatch alarm is triggered.
+
 #### **2️⃣ Subscribe Team Members to SNS Notifications**
 Send alerts to the SRE and developers' email addresses:
 ```bash
 aws sns subscribe --topic-arn arn:aws:sns:us-east-1:xxxxxxx:TomcatAlerts --protocol email --notification-endpoint dev-team@example.com
 ```
+✅ **What It Does:**
+- Subscribes the **SRE and development team** to receive notifications.
+- Whenever an **alarm is triggered**, AWS SNS will send an **email notification** to the subscribed recipients.
+
 #### **3️⃣ Create a CloudWatch Alarm for Log-Based Errors**
 Once log-based error tracking is in place, an **alarm** can be set up to trigger notifications when a threshold is reached:
 ```bash
@@ -198,11 +206,17 @@ aws cloudwatch put-metric-alarm --alarm-name "TomcatErrorAlarm" \
  --dimensions "Name=InstanceId,Value=i-xxxxx" \
  --evaluation-periods 2 --alarm-actions arn:aws:sns:us-east-1:xxxxxxx:notify
 ```
-This alarm **monitors the error count** in the Tomcat logs and **triggers an SNS notification** if the error threshold is exceeded.
+✅ **What It Does:**
+- Monitors the **error count** in Tomcat logs.
+- If **at least one error is detected (`threshold = 1`)**, an alarm is triggered.
+- The alarm sends an **SNS notification to the `TomcatAlerts` topic**, which notifies the SRE and development team.
 
 ---
 
+### **🔗 Integration Flow: How It Works Together**
+1️⃣ **CloudWatch Agent** collects logs from multiple EC2 instances and stores them in a **centralized log group**.
+2️⃣ **CloudWatch Metric Filter** detects error patterns (`ERROR`) in logs and generates a metric (`TomcatErrorCount`).
+3️⃣ **CloudWatch Alarm** watches this metric and triggers when errors exceed the defined threshold.
+4️⃣ **SNS Topic (`TomcatAlerts`)** receives the alarm and **sends email notifications** to the SRE and developers.
+
 🚀 **This setup ensures deep monitoring, proactive alerts, and log-based error tracking for multiple Tomcat instances and applications. Let me know if you need further refinements!**
-
-
-🚀 **This setup ensures deep monitoring and proactive alerts for multiple Tomcat instances and applications running across different EC2 instances. Let me know if you need further refinements!**
