@@ -112,22 +112,56 @@ Configure the agent to **scrape logs from:**
 - `/var/log/tomcat/catalina.out`
 - `/app/ThingWorx/logs/application.logs`
 
+#### **🔄 Separate Log Groups per Application & Instance**
+Modify the **CloudWatch Agent config** (`/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json`):
+```json
+{
+    "logs": {
+        "logs_collected": {
+            "files": {
+                "collect_list": [
+                    {
+                        "file_path": "/var/log/tomcat/catalina.out",
+                        "log_group_name": "/tomcat/app1/instance-$(hostname)",
+                        "log_stream_name": "{instance_id}"
+                    },
+                    {
+                        "file_path": "/app/ThingWorx/logs/application.logs",
+                        "log_group_name": "/tomcat/app2/instance-$(hostname)",
+                        "log_stream_name": "{instance_id}"
+                    }
+                ]
+            }
+        }
+    }
+}
+```
+Restart the agent:
+```bash
+sudo systemctl restart amazon-cloudwatch-agent
+```
+
 ### **2️⃣ Create CloudWatch Alarms for Log Patterns**
-Example: Detecting "ERROR" in logs:
+Example: Detecting "ERROR" in logs for specific applications:
+```bash
+aws logs put-metric-filter --log-group-name "/tomcat/app1/instance-i-xxxxx" \
+ --filter-name "TomcatErrorFilter-App1" --filter-pattern "ERROR" \
+ --metric-transformations metricName=TomcatErrorCount,metricNamespace=Tomcat,metricValue=1
+```
+```bash
+aws logs put-metric-filter --log-group-name "/tomcat/app2/instance-i-yyyyy" \
+ --filter-name "TomcatErrorFilter-App2" --filter-pattern "ERROR" \
+ --metric-transformations metricName=TomcatErrorCount,metricNamespace=Tomcat,metricValue=1
+```
+
+### **3️⃣ Use Metric Dimensions for EC2 Instances**
 ```bash
 aws logs put-metric-filter --log-group-name "/var/log/tomcat/catalina.out" \
  --filter-name "TomcatErrorFilter" --filter-pattern "ERROR" \
- --metric-transformations metricName=TomcatErrorCount,metricNamespace=Tomcat,metricValue=1
-```
-Create an alarm based on the metric:
-```bash
-aws cloudwatch put-metric-alarm --alarm-name "TomcatErrorAlarm" \
- --metric-name "TomcatErrorCount" --namespace "Tomcat" --statistic "Sum" \
- --threshold 1 --comparison-operator "GreaterThanThreshold" --evaluation-periods 2 \
- --alarm-actions arn:aws:sns:us-east-1:xxxxxxx:notify
+ --metric-transformations metricName=TomcatErrorCount,metricNamespace=Tomcat,metricValue=1,dimensions=InstanceId
 ```
 
-### **3️⃣ Notify SRE Team & Developers via SNS**
+### **4️⃣ Notify SRE Team & Developers via SNS**
 Create an SNS topic:
 ```bash
 aws sns create-topic --name TomcatAlerts
@@ -136,7 +170,15 @@ Subscribe email recipients:
 ```bash
 aws sns subscribe --topic-arn arn:aws:sns:us-east-1:xxxxxxx:TomcatAlerts --protocol email --notification-endpoint dev-team@example.com
 ```
+Create an alarm based on **instance-specific logs**:
+```bash
+aws cloudwatch put-metric-alarm --alarm-name "TomcatErrorAlarm-App1" \
+ --metric-name "TomcatErrorCount" --namespace "Tomcat" \
+ --statistic "Sum" --threshold 1 --comparison-operator "GreaterThanThreshold" \
+ --dimensions "Name=InstanceId,Value=i-xxxxx" \
+ --evaluation-periods 2 --alarm-actions arn:aws:sns:us-east-1:xxxxxxx:notify
+```
 
 ---
 
-🚀 **This setup ensures deep monitoring and proactive alerts for Tomcat and ThingWorx failures beyond just ALB health checks. Let me know if you need further refinements!**
+🚀 **This setup ensures deep monitoring and proactive alerts for multiple Tomcat instances and applications running across different EC2 instances. Let me know if you need further refinements!**
