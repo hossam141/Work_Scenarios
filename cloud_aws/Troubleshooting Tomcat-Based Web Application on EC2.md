@@ -103,17 +103,31 @@ aws ec2 describe-instance-status --instance-ids i-xxxxxxxx
 ---
 
 ## **🔍 Step 6: Configure CloudWatch Agent & Alarms**
+
 ### **1️⃣ Install CloudWatch Agent**
+
+The **Amazon CloudWatch Agent** allows us to collect logs and metrics from our EC2 instances, providing deeper monitoring and alerting capabilities.
+
+#### **1️⃣ Install the CloudWatch Agent**
+On each EC2 instance where Tomcat is running, install the CloudWatch Agent:
 ```bash
 sudo yum install amazon-cloudwatch-agent -y
+```
+Run the **CloudWatch Agent Configuration Wizard** to set up basic configurations:
+```bash
 sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-config-wizard
 ```
-Configure the agent to **scrape logs from:**
-- `/var/log/tomcat/catalina.out`
-- `/app/ThingWorx/logs/application.logs`
 
-#### **🔄 Separate Log Groups per Application & Instance**
-Modify the **CloudWatch Agent config** (`/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json`):
+#### **2️⃣ Configure CloudWatch Agent to Collect Tomcat Logs**
+The CloudWatch Agent needs to be configured to **scrape logs from the following locations:**
+- `/var/log/tomcat/catalina.out` (Tomcat logs)
+- `/app/ThingWorx/logs/application.logs` (Application-specific logs)
+
+Modify the **CloudWatch Agent configuration file** located at:
+```bash
+/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+```
+Add the following configuration:
 ```json
 {
     "logs": {
@@ -122,12 +136,12 @@ Modify the **CloudWatch Agent config** (`/opt/aws/amazon-cloudwatch-agent/etc/am
                 "collect_list": [
                     {
                         "file_path": "/var/log/tomcat/catalina.out",
-                        "log_group_name": "/tomcat/app1/instance-$(hostname)",
+                        "log_group_name": "/tomcat/app/instance-$(hostname)",
                         "log_stream_name": "{instance_id}"
                     },
                     {
                         "file_path": "/app/ThingWorx/logs/application.logs",
-                        "log_group_name": "/tomcat/app2/instance-$(hostname)",
+                        "log_group_name": "/tomcat/app/instance-$(hostname)",
                         "log_stream_name": "{instance_id}"
                     }
                 ]
@@ -136,49 +150,59 @@ Modify the **CloudWatch Agent config** (`/opt/aws/amazon-cloudwatch-agent/etc/am
     }
 }
 ```
-Restart the agent:
+#### **3️⃣ Restart the CloudWatch Agent**
+After modifying the configuration file, restart the agent to apply changes:
 ```bash
 sudo systemctl restart amazon-cloudwatch-agent
 ```
 
-### **2️⃣ Create CloudWatch Alarms for Log Patterns**
-Example: Detecting "ERROR" in logs for specific applications:
-```bash
-aws logs put-metric-filter --log-group-name "/tomcat/app1/instance-i-xxxxx" \
- --filter-name "TomcatErrorFilter-App1" --filter-pattern "ERROR" \
- --metric-transformations metricName=TomcatErrorCount,metricNamespace=Tomcat,metricValue=1
-```
-```bash
-aws logs put-metric-filter --log-group-name "/tomcat/app2/instance-i-yyyyy" \
- --filter-name "TomcatErrorFilter-App2" --filter-pattern "ERROR" \
- --metric-transformations metricName=TomcatErrorCount,metricNamespace=Tomcat,metricValue=1
-```
+---
 
-### **3️⃣ Use Metric Dimensions for EC2 Instances**
+### **2️⃣ Use Metric Dimensions to Differentiate EC2 Instances**
+Since multiple EC2 instances are running Tomcat, we need to track errors per **EC2 instance** using **metric dimensions**.
+
+#### **1️⃣ Create a CloudWatch Metric Filter to Track Errors Per Instance**
 ```bash
 aws logs put-metric-filter --log-group-name "/var/log/tomcat/catalina.out" \
  --filter-name "TomcatErrorFilter" --filter-pattern "ERROR" \
  --metric-transformations metricName=TomcatErrorCount,metricNamespace=Tomcat,metricValue=1,dimensions=InstanceId
 ```
+✅ **What It Does:**
+- Uses a **single log group for all instances**.
+- **Adds `InstanceId` as a filter**, so we can still track errors **per EC2 instance**.
+- Helps differentiate errors from **different servers running the same application**.
 
-### **4️⃣ Notify SRE Team & Developers via SNS**
-Create an SNS topic:
+💡 **When to Use:**  
+👉 If multiple EC2 instances run **the same application**, but we need to know **which instance is failing**.
+
+---
+
+### **3️⃣ Notify SRE Team & Developers via SNS**
+When a critical issue is detected, an **Amazon SNS (Simple Notification Service) topic** can be used to send notifications to the SRE and development teams.
+
+#### **1️⃣ Create an SNS Topic for Notifications**
 ```bash
 aws sns create-topic --name TomcatAlerts
 ```
-Subscribe email recipients:
+#### **2️⃣ Subscribe Team Members to SNS Notifications**
+Send alerts to the SRE and developers' email addresses:
 ```bash
 aws sns subscribe --topic-arn arn:aws:sns:us-east-1:xxxxxxx:TomcatAlerts --protocol email --notification-endpoint dev-team@example.com
 ```
-Create an alarm based on **instance-specific logs**:
+#### **3️⃣ Create a CloudWatch Alarm for Log-Based Errors**
+Once log-based error tracking is in place, an **alarm** can be set up to trigger notifications when a threshold is reached:
 ```bash
-aws cloudwatch put-metric-alarm --alarm-name "TomcatErrorAlarm-App1" \
+aws cloudwatch put-metric-alarm --alarm-name "TomcatErrorAlarm" \
  --metric-name "TomcatErrorCount" --namespace "Tomcat" \
  --statistic "Sum" --threshold 1 --comparison-operator "GreaterThanThreshold" \
  --dimensions "Name=InstanceId,Value=i-xxxxx" \
  --evaluation-periods 2 --alarm-actions arn:aws:sns:us-east-1:xxxxxxx:notify
 ```
+This alarm **monitors the error count** in the Tomcat logs and **triggers an SNS notification** if the error threshold is exceeded.
 
 ---
+
+🚀 **This setup ensures deep monitoring, proactive alerts, and log-based error tracking for multiple Tomcat instances and applications. Let me know if you need further refinements!**
+
 
 🚀 **This setup ensures deep monitoring and proactive alerts for multiple Tomcat instances and applications running across different EC2 instances. Let me know if you need further refinements!**
