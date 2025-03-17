@@ -1,7 +1,12 @@
 # 📌 Configuring Terraform Remote State Storage in AWS S3
 
 ## **🔹 Objective**
-This guide explains how to **store Terraform state files (`terraform.tfstate`) in AWS S3** and use **DynamoDB for state locking** to enable **secure team collaboration**.
+This guide explains how to store Terraform state files (`terraform.tfstate`) in AWS S3 and use DynamoDB for state locking to enable secure team collaboration.
+
+---
+
+## **🔹 What is AWS DynamoDB?**
+AWS **DynamoDB** is a **fully managed NoSQL database service** that provides **fast and scalable storage** with built-in security, backup, and automatic scaling. It is used in Terraform state management to **prevent conflicts** by locking the state file when multiple users or pipelines are making changes simultaneously.
 
 ---
 
@@ -17,7 +22,7 @@ This guide explains how to **store Terraform state files (`terraform.tfstate`) i
 ---
 
 ## **2️⃣ Step 2: Create a DynamoDB Table (For State Locking)**
-AWS **DynamoDB** prevents simultaneous Terraform runs from modifying the state file.
+AWS **DynamoDB prevents simultaneous Terraform runs from modifying the state file**, ensuring consistency in multi-user environments.
 
 1. **Go to AWS Console** → **DynamoDB** → **Create Table**.
 2. **Table Name**: `terraform-state-locking`.
@@ -64,8 +69,8 @@ Run:
 ```bash
 terraform apply
 ```
-1. Check **S3 Bucket** → You should see `terraform.tfstate` stored inside.
-2. Check **DynamoDB Table** → A `LockID` entry appears when Terraform is running.
+1. **Check S3 Bucket** → You should see `terraform.tfstate` stored inside.
+2. **Check DynamoDB Table** → A `LockID` entry appears when Terraform is running.
 
 ---
 
