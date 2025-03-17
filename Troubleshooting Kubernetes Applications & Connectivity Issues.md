@@ -1,166 +1,145 @@
 # 📌 Troubleshooting Kubernetes Applications & Connectivity Issues
 
-## **🔹 Overview**
-When an application fails in Kubernetes, or there are connectivity issues with containers, pods, or services, you need a **systematic approach** to troubleshooting. Below are common failure scenarios and step-by-step diagnostics for each case.
+## **🔹 Understanding Kubernetes Pod Status**
+A Kubernetes pod can enter different states based on its lifecycle and issues encountered during execution. Below are common pod states:
+
+| **Pod Status** | **Description** |
+|--------------|---------------|
+| **Pending** | The pod has been accepted by the cluster but is waiting for resource allocation. |
+| **Running** | The pod has been scheduled on a node and all containers are running. |
+| **Succeeded** | The pod has completed execution successfully (used in Jobs). |
+| **Failed** | One or more containers in the pod terminated with an error. |
+| **CrashLoopBackOff** | A container is repeatedly crashing and restarting. |
+| **ImagePullBackOff** | Kubernetes failed to pull the container image. |
+| **Init:Error** | The `initContainer` failed to execute properly. |
+| **ContainerCreating** | Kubernetes is pulling the image or mounting volumes before starting the container. |
 
 ---
 
-## **1️⃣ Scenario: Pod is Stuck in `Pending` State**
+## **🔹 Troubleshooting Scenarios & Pod Status**
+
+### **1️⃣ Scenario: InitContainer (`Liquibase` for JAVA app) Fails**
 ### **🚀 Issue:**
-- `kubectl get pods` shows pods in `Pending` state, meaning they are not scheduled on a node.
+- `kubectl get pods` shows the pod stuck in **`Init:Error`** or `CrashLoopBackOff`.
+- The InitContainer fails before the main application starts.
 
-### **🛠 Steps to Troubleshoot & Fix**
-1️⃣ **Check Pod Events for Errors**
+### **🛠 Possible Causes & Fixes**
+1️⃣ **Check InitContainer Logs for Errors**
 ```bash
-kubectl describe pod <pod-name>
+kubectl logs <pod-name> -c <init-container-name>
 ```
-✅ **Look for messages like `FailedScheduling`, `Insufficient CPU/Memory`**.
+✅ Look for database connectivity issues, permission errors, or missing migrations.
 
-2️⃣ **Check Available Worker Nodes**
-```bash
-kubectl get nodes
-```
-✅ **Ensure there are active and ready nodes.**
-
-3️⃣ **Check Resource Requests & Limits**
-```bash
-kubectl describe pod <pod-name> | grep -i requests -A5
-```
-✅ **Ensure the pod's resource requests are within node capacity.**
-
-4️⃣ **Check Cluster Autoscaler Logs (if enabled)**
-```bash
-kubectl logs -n kube-system deployment/cluster-autoscaler
-```
-✅ **See if autoscaler is adding new nodes.**
-
----
-
-## **2️⃣ Scenario: Pod is Stuck in `CrashLoopBackOff`**
-### **🚀 Issue:**
-- The pod is continuously restarting due to an application error.
-
-### **🛠 Steps to Troubleshoot & Fix**
-1️⃣ **Check Logs for Errors**
-```bash
-kubectl logs <pod-name>
-```
-✅ **Identify application errors causing the crash.**
-
-2️⃣ **Check Pod Events for Failures**
-```bash
-kubectl describe pod <pod-name>
-```
-✅ **Look for `OOMKilled`, `FailedMount`, or `ImagePullBackOff`.**
-
-3️⃣ **Access the Container & Debug**
+2️⃣ **Verify Database Connection**
 ```bash
 kubectl exec -it <pod-name> -- /bin/sh
+nc -zv <db-host> <db-port>
 ```
-✅ **Manually inspect logs, environment variables, and configurations.**
+✅ Ensure Liquibase can reach the database.
 
-4️⃣ **Check Deployment Configuration**
+3️⃣ **Check InitContainer Command & Exit Code**
 ```bash
-kubectl get deployment <deployment-name> -o yaml
+kubectl describe pod <pod-name>
 ```
-✅ **Ensure correct image version, environment variables, and resource limits.**
+✅ Ensure the command executed successfully (`exit code 0`).
 
 ---
 
-## **3️⃣ Scenario: Pod is Running, but the Application is Unreachable**
+### **2️⃣ Scenario: Secret Not Sealed Correctly & Mounted in Deployment**
 ### **🚀 Issue:**
-- The pod is running, but the application inside the container is not accessible.
+- `kubectl get pods` shows the pod stuck in **`CrashLoopBackOff`** or **`ContainerCreating`**.
+- The application fails due to missing environment variables or mounted secrets.
 
-### **🛠 Steps to Troubleshoot & Fix**
-1️⃣ **Check Service & Endpoint Mapping**
+### **🛠 Possible Causes & Fixes**
+1️⃣ **Check Pod Events for Mounting Issues**
 ```bash
-kubectl get services
-kubectl get endpoints
+kubectl describe pod <pod-name>
 ```
-✅ **Ensure the service is pointing to the correct pod IP.**
+✅ Look for messages like `MountVolume.SetUp failed for volume`.
 
-2️⃣ **Test Internal Connectivity (From Another Pod)**
+2️⃣ **Verify Secret Exists**
 ```bash
-kubectl run -it --rm busybox --image=busybox -- /bin/sh
-wget <service-name>:<port>
+kubectl get secret <secret-name> -o yaml
 ```
-✅ **Verify if the service is reachable inside the cluster.**
+✅ Ensure the secret is properly created and available.
 
-3️⃣ **Check Application Listening Ports**
-```bash
-kubectl exec -it <pod-name> -- netstat -tulnp
+3️⃣ **Confirm Deployment is Correctly Mounting the Secret**
+```yaml
+volumes:
+  - name: app-secret
+    secret:
+      secretName: my-secret
 ```
-✅ **Ensure the app is listening on the correct port inside the container.**
-
-4️⃣ **Check Network Policies**
-```bash
-kubectl get networkpolicy
-```
-✅ **Confirm that no restrictive network policies are blocking traffic.**
+✅ Ensure the secret name matches the Kubernetes resource.
 
 ---
 
-## **4️⃣ Scenario: Pod is Not Getting External Traffic (Ingress Issue)**
+### **3️⃣ Scenario: Missing ConfigMap in Deployment**
 ### **🚀 Issue:**
-- Application is accessible inside the cluster but not from the internet.
+- `kubectl get pods` shows the pod in **`CrashLoopBackOff`** or **`ContainerCreating`** state.
+- The application fails due to missing configuration files.
 
-### **🛠 Steps to Troubleshoot & Fix**
-1️⃣ **Check Ingress Controller Logs**
+### **🛠 Possible Causes & Fixes**
+1️⃣ **Check Pod Events for ConfigMap Issues**
 ```bash
-kubectl logs -n kube-system -l app.kubernetes.io/name=ingress-nginx
+kubectl describe pod <pod-name>
 ```
-✅ **Look for routing errors.**
+✅ Look for `MountVolume.SetUp failed for volume` errors.
 
-2️⃣ **Check Ingress Resource Configuration**
+2️⃣ **Verify ConfigMap Exists**
 ```bash
-kubectl describe ingress <ingress-name>
+kubectl get configmap <configmap-name> -o yaml
 ```
-✅ **Ensure correct host and path rules.**
+✅ Ensure the ConfigMap exists and contains the required values.
 
-3️⃣ **Check Cloud Load Balancer Status (If Used)**
-```bash
-kubectl get svc -n kube-system
+3️⃣ **Confirm Deployment References the Correct ConfigMap Name**
+```yaml
+volumes:
+  - name: app-config
+    configMap:
+      name: my-config
 ```
-✅ **Confirm external load balancer has a public IP assigned.**
-
-4️⃣ **Check Firewall & Security Groups** (For AWS, GCP, Azure)
-```bash
-aws ec2 describe-security-groups
-```
-✅ **Ensure security groups allow inbound traffic on the required ports (e.g., 80, 443).**
+✅ Ensure the ConfigMap name matches what is defined in the deployment.
 
 ---
 
-## **5️⃣ Scenario: DNS Resolution Fails Inside Cluster**
+### **4️⃣ Scenario: Readiness or Liveness Probe Issues**
 ### **🚀 Issue:**
-- Application pods cannot resolve internal services by name.
+- `kubectl get pods` shows the pod in **`Running`** state, but the app is unreachable.
+- `kubectl describe pod <pod-name>` shows **liveness probe failures**.
 
-### **🛠 Steps to Troubleshoot & Fix**
-1️⃣ **Check CoreDNS Pods**
+### **🛠 Possible Causes & Fixes**
+1️⃣ **Check Readiness & Liveness Probe Logs**
 ```bash
-kubectl get pods -n kube-system -l k8s-app=kube-dns
+kubectl describe pod <pod-name>
 ```
-✅ **Ensure CoreDNS pods are running.**
+✅ Look for errors related to failed health checks.
 
-2️⃣ **Test DNS Resolution**
+2️⃣ **Test Application Health Check Manually**
 ```bash
-kubectl exec -it <pod-name> -- nslookup <service-name>
+kubectl exec -it <pod-name> -- curl http://localhost:8080/health
 ```
-✅ **If DNS fails, restart CoreDNS pods:**
-```bash
-kubectl rollout restart deployment coredns -n kube-system
+✅ Ensure the endpoint returns a **200 OK** response.
+
+3️⃣ **Fix Incorrect Probe Configurations**
+```yaml
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8080
+  initialDelaySeconds: 10
+  periodSeconds: 5
 ```
-✅ **Check CoreDNS logs for errors.**
+✅ Ensure the app has enough startup time before running the probe.
 
 ---
 
-## **🚀 Summary: Common Kubernetes Troubleshooting Scenarios**
-| **Scenario** | **Issue** | **Solution** |
-|-------------|---------|-----------|
-| **Pods stuck in `Pending`** | No available nodes or insufficient resources | Check events, node capacity, and Cluster Autoscaler |
-| **Pods in `CrashLoopBackOff`** | Application crash or misconfiguration | Check logs, describe pod events, inspect environment variables |
-| **Pod running but unreachable** | Application or networking issue | Check service endpoints, test connectivity from another pod, inspect network policies |
-| **External traffic not reaching app** | Ingress misconfiguration | Check Ingress logs, security groups, firewall settings |
-| **DNS resolution fails inside cluster** | CoreDNS failure | Restart CoreDNS, check logs, test DNS with `nslookup` |
+## **🚀 Summary: Common Kubernetes Troubleshooting Scenarios & Pod Status**
+| **Scenario** | **Issue** | **Pod Status** | **Solution** |
+|-------------|---------|-----------|------------|
+| **InitContainer (`Liquibase`) failure** | Database connection issues, migration failure | `Init:Error`, `CrashLoopBackOff` | Check logs, validate DB connection, fix init script |
+| **Secret not mounted correctly** | Incorrectly sealed or missing secret | `CrashLoopBackOff`, `ContainerCreating` | Verify secret exists, check volume mounts |
+| **Missing ConfigMap in Deployment** | ConfigMap not found or misconfigured | `CrashLoopBackOff`, `ContainerCreating` | Ensure ConfigMap exists, update deployment YAML |
+| **Readiness/Liveness Probe failure** | Health check failures | `Running`, but failing probes | Check probe logs, increase `initialDelaySeconds`, validate endpoint |
 
 ✅ **By following these troubleshooting steps, an SRE engineer can quickly diagnose and resolve Kubernetes failures!** 🚀
