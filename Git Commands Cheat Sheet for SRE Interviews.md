@@ -8,13 +8,9 @@ Git is an essential tool for **Site Reliability Engineers (SREs)** to manage cod
 ## **🔹 Git Workflow Diagram**
 
 ```plaintext
-  (Working Directory)       (Staging Area)         (Repository)
-        ↓                         ↓                     ↓
-  Modify Files            git add <file>         git commit -m "msg"   
-        ↓                         ↓                     ↓
-  Untracked/Modified   Changes Staged       Save to Local Repo
-        ↓
-    git push origin <branch>   →  Upload to Remote Repo
+Modify Files  →  git add <file>  →  git commit -m "msg"  →  git push origin <branch>
+(Working Directory)   →   (Staging Area)   →   (Local Repository)   →   (Remote Repository)
+
 ```
 
 ---
