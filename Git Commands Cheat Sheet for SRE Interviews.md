@@ -10,9 +10,11 @@ Git is an essential tool for **Site Reliability Engineers (SREs)** to manage cod
 ```plaintext
   (Working Directory)       (Staging Area)         (Repository)
         ↓                         ↓                     ↓
-    git add <file>         git commit -m "msg"     git push origin <branch>
+  Modify Files            git add <file>         git commit -m "msg"   
         ↓                         ↓                     ↓
-  Modify Files        Stage Changes          Upload to Remote Repo
+  Untracked/Modified   Changes Staged       Save to Local Repo
+        ↓
+    git push origin <branch>   →  Upload to Remote Repo
 ```
 
 ---
