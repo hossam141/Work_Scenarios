@@ -1,8 +1,6 @@
 
 # CrashLoopBackOff Error Debugging in Kubernetes
 
-This repository contains the debugging steps for resolving the `CrashLoopBackOff` error in a Kubernetes pod. The scenario involves a web application that works locally but fails when deployed to a Kubernetes cluster.
-
 ## Scenario Overview
 
 A web application pod in Kubernetes is stuck in a `CrashLoopBackOff` state. The application runs fine locally, but it continuously fails to start in the cluster. Through investigation, we found that the issue was caused by missing dependencies in the Docker image.
