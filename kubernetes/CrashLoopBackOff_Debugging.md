@@ -41,7 +41,7 @@ Events:
   Warning  BackOff    2m    kubelet, node-1    Back-off restarting failed container
 ```
 
-From this, you can see the pod was initially created successfully, but it is repeatedly failing to restart. The error message isn't conclusive about why, so you suspect it might be a dependency issue or a misconfiguration.
+From this, you can see the pod was initially created successfully, but it is repeatedly failing to restart. The error message isn't conclusive about why, so you suspect it might be a dependency issue or a misconfiguration. Also this gives you detailed events such as ImagePullBackOff, OOMKilled (out of memory), or issues with resource constraints like CPU/memory. Look for anything that indicates resource exhaustion (e.g., OOMKilled) or container image issues (e.g., image pull failures).
 
 ## Step 4: Check Resource Requests and Limits
 
