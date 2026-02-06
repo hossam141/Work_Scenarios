@@ -1,135 +1,68 @@
-# AWS EKS Cost Optimization
+# AWS EKS Multi-Account Cost Optimization (67% Savings) - E
 
-## Business Problem
-Your company is running an **EKS cluster** across two **separate AWS accounts**:
-  - **STG/PROD Account** → Stable, long-running workloads (**must be cost-efficient** and highly available).
-  - **DEV/TEST Account** → Temporary, fault-tolerant workloads (**cost savings needed**).
+## 1. The Problem
+An EKS cluster was running across two AWS accounts (**STG/PROD** and **DEV/TEST**) using only **On-Demand** instances. This resulted in a monthly bill of **$1,515.48**, which was unsustainable for non-production environments and inefficient for stable production workloads.
 
-Initially, all EC2 instances were **On-Demand**, leading to **high costs**.
+## 2. The Investigation
+To identify the waste, I used **AWS Cost Explorer** and the following CLI command to analyze current instance usage and pricing models:
 
-## Initial Cost Breakdown (Before Optimization)
-| **Environment** | **Instance Type** | **Instance Pricing Model (Before)** | **Cost Per Month (Before)** |
-|----------------|------------------|----------------------------------|----------------------|
-| **STG & PROD** | `m5.large` / `m6g.large` | **On-Demand** | **$757.74** |
-| **DEV & TEST** | `m5.large` / `m6g.large` | **On-Demand** | **$757.74** |
-| **Total Cost (Before Optimization)** | **$1,515.48 per month** |
+```bash
+# List all instances in the cluster and their lifecycle (On-Demand vs Spot)
+kubectl get nodes -o custom-columns=NAME:.metadata.name,INSTANCE-TYPE:.item.metadata.labels.'node\.kubernetes\.io/instance-type',LIFECYCLE:.metadata.labels.'eks\.amazonaws\.com/capacityType'
+```
 
-## Cost Optimization Plan
-- **STG/PROD**: Switch to **Reserved Instances (RI) with All Upfront payment** to maximize cost savings.
-- **DEV/TEST**: Move to **Spot Instances with a max bid price of `$0.04/hr`** for controlled cost savings.
-- Automate the infrastructure using **Terraform & Terragrunt**.
-- Ensure workloads are properly scheduled using **Helm and Kubernetes labels**.
-- **Create and configure EKS Node Groups** to ensure instances are properly utilized.
+The analysis confirmed that **100%** of the fleet was **ON_DEMAND**, even for the fault-tolerant DEV workloads.
 
-## Step 1: Configure Reserved Instances (RI) for STG/PROD (All Upfront Payment)
+## 3. The Solution
+I implemented a dual-strategy optimization: **Reserved Instances (RI)** for stability and **Spot Instances** for cost-sensitive testing.
+
+### A. Production: Reserved Instances (All Upfront)
+Purchased RIs for the **STG/PROD** account to cover the “baseline” load.
+
 ```bash
 aws ec2 purchase-reserved-instances-offering \
     --instance-type m5.large \
-    --reserved-instances-offering-id $(aws ec2 describe-reserved-instances-offerings --instance-type m5.large --region us-east-1 --query 'ReservedInstancesOfferings[0].ReservedInstancesOfferingId' --output text) \
-    --instance-count 6 --offering-type All Upfront
+    --reserved-instances-offering-id $(aws ec2 describe-reserved-instances-offerings --instance-type m5.large --query 'ReservedInstancesOfferings[0].ReservedInstancesOfferingId' --output text) \
+    --instance-count 6 --offering-type "All Upfront"
 ```
 
-## Step 2: Configure Spot Instances for DEV/TEST with Max Bid Price
-```hcl
-resource "aws_spot_instance_request" "dev_test" {
-  provider = aws.dev
-  count = 6
-  ami = "ami-0abcdef1234567890"
-  instance_type = var.dev_test_instance_type
-  spot_price = "0.04" # Set max bid to $0.04/hr
-  subnet_id = var.subnet_id
-}
-```
+### B. Dev/Test: Spot Managed Node Groups
+Used Terraform to provision Spot instances for **DEV/TEST**. I included instance diversification to ensure availability if `m5.large` is reclaimed.
 
-## Step 3: Creating EKS Node Groups
-
-### Creating Node Group for STG/PROD (Reserved Instances)
 ```hcl
-resource "aws_eks_node_group" "stg_prod_node_group" {
-  cluster_name    = aws_eks_cluster.eks.name
-  node_group_name = "stg-prod-group"
+resource "aws_eks_node_group" "dev_test_spot" {
+  cluster_name    = aws_eks_cluster.main.name
+  node_group_name = "dev-test-spot-group"
   node_role_arn   = aws_iam_role.eks_node.arn
-  subnet_ids      = var.subnet_ids
-  instance_types  = ["m5.large", "m6g.large"]
-  capacity_type   = "ON_DEMAND"
-}
-```
+  subnet_ids      = var.private_subnets
 
-### Creating Node Group for DEV/TEST (Spot Instances)
-```hcl
-resource "aws_eks_node_group" "dev_test_node_group" {
-  cluster_name    = aws_eks_cluster.eks.name
-  node_group_name = "dev-test-group"
-  node_role_arn   = aws_iam_role.eks_node.arn
-  subnet_ids      = var.subnet_ids
-  instance_types  = ["m5.large", "m6g.large"]
   capacity_type   = "SPOT"
+  # Best Practice: Mix instance types to increase Spot availability
+  instance_types  = ["m5.large", "m5a.large", "m4.large"]
+
+  scaling_config {
+    desired_size = 3
+    max_size     = 6
+    min_size     = 1
+  }
 }
 ```
 
-## Step 4: Automating Multi-Account Setup Using Terragrunt
-### STG/PROD Account Configuration
-```hcl
-terraform {
-  source = "../../../modules/eks_instances"
-}
+### C. Workload Scheduling (Helm/Kubernetes)
+Updated the Helm `values.yaml` to ensure pods land on the correct cost-optimized nodes.
 
-inputs = {
-  env = "stg"
-  stg_prod_instance_type = "m5.large"
-  subnet_id = "subnet-xxxxxx"
-}
-```
-
-### DEV/TEST Account Configuration
-```hcl
-terraform {
-  source = "../../../modules/eks_instances"
-}
-
-inputs = {
-  env = "dev"
-  dev_test_instance_type = "m5.large"
-  subnet_id = "subnet-yyyyyy"
-}
-```
-
-## Step 5: Configuring Kubernetes & Helm for Proper Workload Scheduling
-```bash
-kubectl label nodes <stg-prod-node-name> eks.amazonaws.com/nodegroup=stg-prod
-kubectl label nodes <dev-test-node-name> eks.amazonaws.com/nodegroup=dev-test
-```
-
-### Modify `values.yaml` in Helm for App Deployments
-#### STG/PROD Apps
 ```yaml
 nodeSelector:
-  eks.amazonaws.com/nodegroup: stg-prod
+  eks.amazonaws.com/capacityType: SPOT # For Dev/Test apps
 ```
 
-#### DEV/TEST Apps
-```yaml
-nodeSelector:
-  eks.amazonaws.com/nodegroup: dev-test
-```
+## 4. The Result (ROI)
 
-## Final Cost Breakdown (After Optimization)
-| **Environment** | **Instance Type** | **Instance Pricing Model (After)** | **Cost Per Month (After)** |
-|----------------|------------------|----------------------------------|----------------------|
-| **STG & PROD** | `m5.large` / `m6g.large` | **Reserved Instances (All Upfront)** | **$315.36** |
-| **DEV & TEST** | `m5.large` / `m6g.large` | **Spot Instances (Max Bid: $0.04/hr)** | **$192.72** |
-| **Total Cost (After Optimization)** | **$508.08 per month** |
+| Environment | Before (On-Demand) | After (RI/Spot) | Savings % |
+|---|---:|---:|---:|
+| STG & PROD | $757.74 | $315.36 | ~58% |
+| DEV & TEST | $757.74 | $192.72 | ~74% |
+| **Total** | **$1,515.48** | **$508.08** | **67% Total Savings** |
 
-**Total Savings:** **$1,515.48 → $508.08 (67% cost reduction!)**
-
-## Interview Answer: Explaining the Optimization
-"In my recent project, I was responsible for optimizing EC2 costs in an EKS cluster across **two AWS accounts**—one for **STG/PROD** and one for **DEV/TEST**.
-
-Initially, all instances were **On-Demand**, costing **$1,515 per month**. I analyzed usage patterns and implemented a new strategy:
-- **For STG & PROD**, I switched to **Reserved Instances (All Upfront)**, reducing costs by **75%**.
-- **For DEV & TEST**, I moved to **Spot Instances** with a max bid price of **$0.04/hr**, ensuring 75% cost savings without exceeding budget.
-- I automated the deployment using **Terraform & Terragrunt** to ensure a **seamless multi-account setup**.
-- I created **EKS Node Groups** to properly handle Reserved and Spot instances.
-- I updated **Helm values** to **properly schedule workloads** in Kubernetes.
-
-As a result, we reduced EC2 costs by **67% ($1,515 → $508 per month)** while maintaining reliability for STG/PROD workloads and flexibility for DEV/TEST workloads."
+## 5. The Lesson
+Diversify your Spot Instance types. Never rely on a single instance type (like `m5.large`) for Spot. If AWS reclaims that specific type in that AZ, your Dev environment will go down. By providing a list (`m5.large`, `m5a.large`, `m4.large`), EKS can always find a cheap alternative to keep the cluster running.
