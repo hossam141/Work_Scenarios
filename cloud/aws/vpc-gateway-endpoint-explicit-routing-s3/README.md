@@ -12,9 +12,6 @@ This directory contains a complete enterprise scenario demonstrating how to prov
 * 🛠️ [**terraform/**](./terraform/)
   * Infrastructure as Code (IaC) files used to provision the VPC, Private Subnets, Route Tables, and the VPC Gateway Endpoint associations.
 
-* 📸 **docs/** *(If uploaded)*
-  * Visual evidence demonstrating the automatic Prefix List injection into the Route Table and the successful application initialization using standard S3 Public URLs from an isolated instance.
-
 ## 🎯 Key Engineering Highlights
 
 * **FinOps & Cost Elimination**: 100% free data transfer to S3. Gateway Endpoints do not charge hourly fees or per-GB processing fees (unlike Interface Endpoints or NAT Gateways).
