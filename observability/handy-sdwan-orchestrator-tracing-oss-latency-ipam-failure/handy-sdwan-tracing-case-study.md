@@ -59,6 +59,7 @@ graph TD
     
     note2[Failure: IP_POOL_EXHAUSTED]
     note2 -.-> IPAM
+```    
 ---
 
 ## 🔍 The Investigation & Jaeger Findings
