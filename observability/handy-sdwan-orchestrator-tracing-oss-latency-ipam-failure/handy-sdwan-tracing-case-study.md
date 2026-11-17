@@ -29,18 +29,18 @@ graph TD
     classDef error fill:#fcc,stroke:#f00,stroke-width:2px;
 
     %% Nodes
-    UI[Frontend / NOC Dashboard]:::client
+    UI["Frontend / NOC Dashboard"]:::client
     
     subgraph Vodafone Handy SD-WAN Platform
-        Orchestrator[sdwan-orchestrator<br/>(FastAPI)]:::service
-        OTel_SDK[OpenTelemetry SDK<br/>(Instrumentation)]:::observability
+        Orchestrator["sdwan-orchestrator (FastAPI)"]:::service
+        OTel_SDK["OpenTelemetry SDK (Instrumentation)"]:::observability
     end
 
-    OSS[oss-fulfillment-api<br/>(Legacy System)]:::external
-    IPAM[ipam-manager<br/>(IP Address Management)]:::error
+    OSS["oss-fulfillment-api (Legacy System)"]:::external
+    IPAM["ipam-manager (IP Address Management)"]:::error
 
-    Collector[OTel Collector]:::observability
-    Jaeger[Jaeger UI<br/>(Trace Visualization)]:::observability
+    Collector["OTel Collector"]:::observability
+    Jaeger["Jaeger UI (Trace Visualization)"]:::observability
 
     %% Traffic Flow
     UI -- "1. POST /provision" --> Orchestrator
@@ -59,8 +59,6 @@ graph TD
     
     note2[Failure: IP_POOL_EXHAUSTED]
     note2 -.-> IPAM
-```
-
 ---
 
 ## 🔍 The Investigation & Jaeger Findings
